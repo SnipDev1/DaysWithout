@@ -19,5 +19,6 @@ I've added some QoL features for you. Just see how operations, which is already 
 
 ### ToDo
 1. [ ] User should be able to change visibility of `Days Without | Hours Without | Minutes Without | Seconds Without`, maybe add settings menu for future needs
+2. [ ] Fix all errors, which can occur because of the user input
 ### P. S.
 It is really niche program and I understand this. But if you need it, use it ;)
