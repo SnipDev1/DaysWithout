@@ -1,6 +1,7 @@
 import time
 
-SCRIPT_ROOT = "C:\\Users\\dimas\\Documents\\PythonProjects\\DaysWithout\\"
+
+SCRIPT_ROOT = ""
 
 
 class Tools:
