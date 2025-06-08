@@ -40,5 +40,11 @@
     "description": "shows all times when the event was reset",
     "format": "{id}",
     "example": "0"
+  },
+  {
+    "name": "late_add",
+    "description": "Allows you to add new timestamp",
+    "format": "{event_id}, {date} (date must be in format: day month year hour:minute, use short format of the month: Sep instead of September)",
+    "example": "0, 28 May 2025"
   }
 ]

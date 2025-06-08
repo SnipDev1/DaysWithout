@@ -1,6 +1,5 @@
 import time
 
-
 SCRIPT_ROOT = ""
 
 
@@ -87,6 +86,8 @@ class ConsoleApp:
                     break
                 case "add":
                     self.add_event()
+                case "late_add":
+                    self.late_add()
                 case "timestamps":
                     self.show_timestamps()
                 case "reset":
@@ -155,8 +156,12 @@ class ConsoleApp:
         if events is not None:
             for i in range(len(events)):
                 event = events[i]
-                days, hours, minutes, seconds = Tools().get_time_diff('all', event.get_start_time())
-                timestamp = Tools().format_timestamp(time.localtime(event.get_start_time()))
+                start_time = event.get_start_time()
+                if event.get_counter() != 0:
+                    start_time = event.get_timestamps()[-1]
+
+                days, hours, minutes, seconds = Tools().get_time_diff('all', start_time)
+                timestamp = Tools().format_timestamp(time.localtime(start_time))
                 # timestamps = []
                 #
                 # event_timestamps_start = len(event.get_timestamps()) - 1
@@ -183,6 +188,25 @@ class ConsoleApp:
         Configuration().save_event(new_event)
 
         # event_name description
+
+    def late_add(self):
+        Help().format_help("late_add")
+        user_input = Tools().user_input('late_add', True).split(',')
+        if len(user_input) != 2:
+            Tools().error_message("wrong format", "Wrong amount of parameters")
+        event_id, new_timestamp = user_input
+        try:
+            event_id = int(event_id)
+        except ValueError:
+            Tools().error_message("Value Error", 'Id must be integer')
+            return
+        try:
+            new_timestamp = time.mktime(time.strptime(new_timestamp.strip(), "%d %b %Y %H:%M"))
+        except ValueError:
+            Tools().error_message("Value Error", "Timestamp is in wrong format, format must be: %d %b %Y %H:%M. Make sure that you don't write 'September' instead of 'Sep'")
+            return
+        events = Configuration().load_events()
+        Configuration().change_event(events[event_id], event_id, True, new_timestamp)
 
 
 class Help:
@@ -219,7 +243,7 @@ class Help:
 
 
 class Event:
-    def __init__(self, name, description, start_time=-1, counter=0, time_stamps=None):
+    def __init__(self, name, description, start_time=-1, counter=0, time_stamps=None, get_counter_from_len=False):
         if time_stamps is None:
             time_stamps = []
         import time
@@ -229,6 +253,8 @@ class Event:
         self.start_time = start_time
         self.counter = counter
         self.timestamps = time_stamps
+        if get_counter_from_len:
+            self.counter = len(time_stamps)
         if start_time == -1:
             self.start_time = time.time()
 
@@ -255,8 +281,8 @@ class Event:
 
     def reset_time(self):
         import time
-        self.counter += 1
         self.timestamps.append(self.start_time)
+        self.counter = len(self.timestamps)
         self.start_time = time.time()
 
 
@@ -290,13 +316,15 @@ class Configuration:
         events = []
         for i in range(len(json_extraction)):
             event = json_extraction[i][str(i)]
-            events.append(Event(event['name'], event['description'], event['start_time'], event['counter'], event['time_stamps']))
+            # print(len(event['time_stamps']))
+            events.append(Event(event['name'], event['description'], event['start_time'], event['counter'], event['time_stamps'], True))
         return events
 
     def new_event(self, event_id, name, description, start_time, counter, time_stamps):
         return {f"{event_id}": {"name": name, "description": description, "start_time": start_time, "counter": counter, "time_stamps": time_stamps}}
 
-    def save_event(self, event: Event):
+    def save_event(self, event: Event, is_late_save=False, timestamp=0):
+
         import json
         with open(self.filename, 'r') as f:
             data = f.read()
@@ -307,12 +335,13 @@ class Configuration:
                 amount_of_events = len(events)
 
         # new_event = {f"{amount_of_events}": {"name": event.get_name(), "description": event.get_description(), "startTime": event.get_start_time(), "counter": event.get_counter()}}
+
         new_event = Configuration().new_event(amount_of_events, event.get_name(), event.get_description(), event.get_start_time(), event.get_counter(), event.get_timestamps())
         events.append(new_event)
         with open(self.filename, 'w') as f:
             json.dump(events, f)
 
-    def change_event(self, event, event_id):
+    def change_event(self, event, event_id, is_late_save=False, timestamp=0):
         if self.is_empty(self.filename):
             return
 
@@ -320,9 +349,12 @@ class Configuration:
         with open(self.filename, 'r') as f:
             data = f.read()
             events = json.loads(data)
+        timestamps = event.get_timestamps()
+        if is_late_save:
+            timestamps.append(timestamp)
+            timestamps = sorted(timestamps)
 
-        # new_event = {f"{event_id}": {"name": event.get_name(), "description": event.get_description(), "startTime": event.get_start_time(), 'counter': event.get_counter()}}
-        new_event = Configuration().new_event(event_id, event.get_name(), event.get_description(), event.get_start_time(), event.get_counter(), event.get_timestamps())
+        new_event = Configuration().new_event(event_id, event.get_name(), event.get_description(), event.get_start_time(), event.get_counter(), timestamps)
 
         events[event_id] = new_event
 
