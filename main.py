@@ -1,6 +1,7 @@
+import os
 import time
 
-SCRIPT_ROOT = ""
+SCRIPT_ROOT = f"{os.path.dirname(os.path.realpath(__file__))}\\"
 
 
 class Tools:
@@ -29,7 +30,7 @@ class Tools:
         import time
         return time.strftime("%d %b %Y %H:%M", n_time)
 
-    def error_message(self, error_name: str, description: str):
+    def error_message(self, error_name: str, description=""):
         print(f'!{error_name.upper()}: {description}!')
 
     def num_formatting(self, num, digits=0):
@@ -62,18 +63,108 @@ class Tools:
             event_id = int(self.user_input(command_name, True))
             return event_id
         except ValueError:
+
             Tools().error_message("Value Error", 'id must be integer')
             return -1
 
 
-class App:
+class Settings:
     def __init__(self):
-        pass
+        self.turned_off_fields_indexes = []
+        self.default_field_names = ['Id', 'Name', 'Description', 'Reset Counter', 'Days Without', 'Hours Without', 'Minutes Without', 'Seconds Without', 'Last Time']
+        self.settings_menus = ['exit', 'Change visibility of the field names']
+        self.settings_filename = Configuration().settings_filename
+        self.load_settings()
+
+    def load_settings(self):
+        import json
+
+        with open(self.settings_filename, 'r') as f:
+            data = f.read()
+
+        json_extraction = json.loads(data)
+        self.turned_off_fields_indexes = json_extraction['turned_off_fields_indexes']
+
+    def save_setting(self, key, value):
+        import json
+        with open(self.settings_filename, 'r') as f:
+            data = f.read()
+            settings = json.loads(data)
+
+        settings[key] = value
+
+        with open(self.settings_filename, 'w') as f:
+            json.dump(settings, f)
+
+    def get_field_names(self):
+        filtered_names = self.default_field_names.copy()
+        for i in self.turned_off_fields_indexes:
+            filtered_names[i] = 'rem'
+        for i in self.turned_off_fields_indexes:
+            filtered_names.remove('rem')
+        return filtered_names
+
+    def normalize_fields(self, fields):
+        normalized_fields = fields.copy()
+        for i in self.turned_off_fields_indexes:
+            normalized_fields[i] = 'rem'
+        for i in self.turned_off_fields_indexes:
+            normalized_fields.remove('rem')
+        return normalized_fields
+
+    def add_turned_off_fields(self, index):
+        self.turned_off_fields_indexes.append(index)
+
+    def change_visibility(self):
+        from prettytable import PrettyTable
+        table = PrettyTable()
+
+        table.field_names = [i + 1 for i in range(len(self.default_field_names))]
+        table.add_row(self.default_field_names)
+        print(table)
+
+        indexes = []
+        Help().format_help("Change visibility of the field names")
+
+        while True:
+            user_input = Tools().user_input('Change visibility of the field names', True)
+            if user_input == '':
+                self.turned_off_fields_indexes = indexes
+                self.save_setting('turned_off_fields_indexes', indexes)
+                return
+            user_input = user_input.split(',')
+            try:
+                indexes = list(map(int, user_input))
+            except ValueError:
+                Tools().error_message("Incorrect value")
+                continue
+            break
+        indexes = list(map(lambda x: x - 1, indexes))
+        self.turned_off_fields_indexes = indexes
+        self.save_setting('turned_off_fields_indexes', indexes)
+
+    def open_settings(self):
+        for i in range(len(self.settings_menus)):
+            print(f"{i + 1}) {self.settings_menus[i]}")
+        while True:
+            try:
+                user_input = int(Tools().user_input('settings', True))
+            except ValueError:
+                Tools().error_message('Value error', 'not integer')
+                continue
+            break
+
+        match user_input:
+            case 1:
+                return
+            case 2:
+                self.change_visibility()
 
 
 class ConsoleApp:
     def __init__(self, add_cmd=False):
         self.add_cmd = add_cmd
+        self.settings = Settings()
         while add_cmd:
             Tools().add_new_command()
         self.show_table()
@@ -96,6 +187,8 @@ class ConsoleApp:
                     self.edit_event()
                 case 'delete':
                     self.delete_event()
+                case 'settings':
+                    self.settings.open_settings()
                 case "help":
                     Help().show_table()
                 case _:
@@ -151,17 +244,16 @@ class ConsoleApp:
         from prettytable import PrettyTable
         table = PrettyTable()
         events = Configuration().load_events()
-        table.field_names = ['Id', 'Name', 'Description', 'Reset Counter', 'Days Without', 'Hours Without', 'Minutes Without', 'Seconds Without', 'Last Time']
+
+        table.field_names = self.settings.get_field_names()
 
         if events is not None:
             for i in range(len(events)):
                 event = events[i]
-                start_time = event.get_start_time()
-                if event.get_counter() != 0:
-                    start_time = event.get_timestamps()[-1]
+                last_event_time = event.get_last_event_time()
 
-                days, hours, minutes, seconds = Tools().get_time_diff('all', start_time)
-                timestamp = Tools().format_timestamp(time.localtime(start_time))
+                days, hours, minutes, seconds = Tools().get_time_diff('all', last_event_time)
+                timestamp = Tools().format_timestamp(time.localtime(last_event_time))
                 # timestamps = []
                 #
                 # event_timestamps_start = len(event.get_timestamps()) - 1
@@ -170,7 +262,8 @@ class ConsoleApp:
                 #         timestamp = Tools().format_timestamp(time.localtime(event.get_timestamps()[j]))
                 #         timestamps.append(timestamp)
 
-                table.add_row([i, event.get_name(), event.get_description(), event.get_counter(), days, hours, minutes, seconds, timestamp])
+                fields = [i, event.get_name(), event.get_description(), event.get_counter(), days, hours, minutes, seconds, timestamp]
+                table.add_row(self.settings.normalize_fields(fields))
         print()
         print(table)
 
@@ -243,20 +336,23 @@ class Help:
 
 
 class Event:
-    def __init__(self, name, description, start_time=-1, counter=0, time_stamps=None, get_counter_from_len=False):
+    def __init__(self, name: str, description: str, time_stamps=None):
         if time_stamps is None:
             time_stamps = []
         import time
 
         self.name = name
-        self.description = description
-        self.start_time = start_time
-        self.counter = counter
+        self.description = description.strip()
+
         self.timestamps = time_stamps
-        if get_counter_from_len:
-            self.counter = len(time_stamps)
-        if start_time == -1:
-            self.start_time = time.time()
+        self.counter = len(time_stamps)
+
+
+        if len(time_stamps) == 0:
+            self.last_event_time = time.time()
+        else:
+            self.last_event_time = time_stamps[-1]
+
 
     def set_name(self, name):
         self.name = name
@@ -270,8 +366,8 @@ class Event:
     def get_description(self):
         return self.description
 
-    def get_start_time(self):
-        return self.start_time
+    def get_last_event_time(self):
+        return self.last_event_time
 
     def get_counter(self):
         return self.counter
@@ -281,14 +377,14 @@ class Event:
 
     def reset_time(self):
         import time
-        self.timestamps.append(self.start_time)
+        self.timestamps.append(time.time())
         self.counter = len(self.timestamps)
-        self.start_time = time.time()
 
 
 class Configuration:
     def __init__(self):
-        self.filename = SCRIPT_ROOT + '/events.json'
+        self.events_filename = SCRIPT_ROOT + 'events.json'
+        self.settings_filename = SCRIPT_ROOT + 'settings.json'
 
     def is_empty(self, filename, raise_empty_message=True):
         with open(filename, 'r') as f:
@@ -302,14 +398,14 @@ class Configuration:
     def load_events(self) -> list:
         import json
         try:
-            with open(self.filename, 'r') as f:
+            with open(self.events_filename, 'r') as f:
                 data = f.read()
         except FileNotFoundError:
             Tools().error_message("File Not Found Error", "You don't have events file, creating...")
-            open(self.filename, 'x')
+            open(self.events_filename, 'x')
             return
 
-        if self.is_empty(self.filename):
+        if self.is_empty(self.events_filename):
             return
 
         json_extraction = json.loads(data)
@@ -317,36 +413,38 @@ class Configuration:
         for i in range(len(json_extraction)):
             event = json_extraction[i][str(i)]
             # print(len(event['time_stamps']))
-            events.append(Event(event['name'], event['description'], event['start_time'], event['counter'], event['time_stamps'], True))
+            events.append(Event(event['name'], event['description'], event['time_stamps']))
         return events
 
-    def new_event(self, event_id, name, description, start_time, counter, time_stamps):
-        return {f"{event_id}": {"name": name, "description": description, "start_time": start_time, "counter": counter, "time_stamps": time_stamps}}
+    def new_event(self, event_id, name, description, last_event_time, time_stamps):
+        if len(time_stamps) == 0:
+            time_stamps = [last_event_time]
+        return {f"{event_id}": {"name": name, "description": description, "time_stamps": time_stamps}}
 
     def save_event(self, event: Event, is_late_save=False, timestamp=0):
 
         import json
-        with open(self.filename, 'r') as f:
+        with open(self.events_filename, 'r') as f:
             data = f.read()
             amount_of_events = 0
             events = []
-            if not self.is_empty(self.filename, False):
+            if not self.is_empty(self.events_filename, False):
                 events = json.loads(data)
                 amount_of_events = len(events)
 
         # new_event = {f"{amount_of_events}": {"name": event.get_name(), "description": event.get_description(), "startTime": event.get_start_time(), "counter": event.get_counter()}}
 
-        new_event = Configuration().new_event(amount_of_events, event.get_name(), event.get_description(), event.get_start_time(), event.get_counter(), event.get_timestamps())
+        new_event = Configuration().new_event(amount_of_events, event.get_name(), event.get_description(), event.get_last_event_time(), event.get_timestamps())
         events.append(new_event)
-        with open(self.filename, 'w') as f:
+        with open(self.events_filename, 'w') as f:
             json.dump(events, f)
 
     def change_event(self, event, event_id, is_late_save=False, timestamp=0):
-        if self.is_empty(self.filename):
+        if self.is_empty(self.events_filename):
             return
 
         import json
-        with open(self.filename, 'r') as f:
+        with open(self.events_filename, 'r') as f:
             data = f.read()
             events = json.loads(data)
         timestamps = event.get_timestamps()
@@ -354,18 +452,18 @@ class Configuration:
             timestamps.append(timestamp)
             timestamps = sorted(timestamps)
 
-        new_event = Configuration().new_event(event_id, event.get_name(), event.get_description(), event.get_start_time(), event.get_counter(), timestamps)
+        new_event = Configuration().new_event(event_id, event.get_name(), event.get_description(), event.get_last_event_time(), timestamps)
 
         events[event_id] = new_event
 
-        with open(self.filename, 'w') as f:
+        with open(self.events_filename, 'w') as f:
             json.dump(events, f)
 
     def delete_event(self, event_id):
-        if self.is_empty(self.filename):
+        if self.is_empty(self.events_filename):
             return
         import json
-        with open(self.filename, 'r') as f:
+        with open(self.events_filename, 'r') as f:
             data = f.read()
             events = json.loads(data)
         for i in range(event_id + 1, len(events)):
@@ -374,7 +472,7 @@ class Configuration:
             events.pop(event_id)
         except IndexError:
             Tools().error_message("Index Error", "Wrong Id")
-        with open(self.filename, 'w') as f:
+        with open(self.events_filename, 'w') as f:
             json.dump(events, f)
 
 

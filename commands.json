@@ -46,5 +46,11 @@
     "description": "Allows you to add new timestamp",
     "format": "{event_id}, {date} (date must be in format: day month year hour:minute, use short format of the month: Sep instead of September)",
     "example": "0, 28 May 2025"
+  },
+  {
+    "name": "Change visibility of the field names",
+    "description": "You can select options which you do not want to see in the events table (if you want to see all columns press Enter)",
+    "format": "{id}, {id}, ... , {id}",
+    "example": "1, 2, 3, 4"
   }
 ]

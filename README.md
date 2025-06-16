@@ -4,12 +4,7 @@
 I wanted to track some of the actions performed or words said by me or my friends, so this small app can help you with this.
 
 ### How to use:
-First of all change `SCRIPT_ROOT` variable in the very beginning of the file. It should be ended with `//`. 
-
-For example: `SCRIPT_ROOT = "K:\\Users\\test\\test2\\test3\\DaysWithout\\"`
-
-
-Then you need to execute `"python main.py"`, then you'll see empty table. 
+Execute `"python main.py"`, then you'll see empty table. 
 
 
 
@@ -25,8 +20,6 @@ It is enough to use it, but also you can delete, edit, and see timestamps of eve
 I've added some QoL features for you. Just see how operations, which is already implemented, are created and use the same methods, my way is pretty comfy.
 
 ### ToDo
-1. [ ] User should be able to change visibility of `Days Without | Hours Without | Minutes Without | Seconds Without`, maybe add settings menu for future needs
-2. [ ] Fix all errors, which can occur because of the user input
-3. [ ] Figure out how to remove `SCRIPT_ROOT`
+1. [ ] Fix all errors, which can occur because of the user input
 ### P. S.
 It is really niche program and I understand this. But if you need it, use it ;)
